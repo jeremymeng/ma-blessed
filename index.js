@@ -5,7 +5,8 @@ const { splash, baseConfig, filePaths, colorScheme } = require("./constants");
 const {
   getDataFeeds,
   getDetectionConfigs,
-  getSeriesData,
+  getEnrichedSeriesData,
+  getIncidents,
 } = require("./mahelpers");
 
 async function main() {
@@ -24,31 +25,40 @@ async function main() {
 }
 
 function transformEnrichedSerieData(enrichedSeriesData) {
-  const { timestampList, valueList, isAnomalyList } = enrichedSeriesData;
+  const {
+    timestampList,
+    valueList,
+    isAnomalyList,
+    lowerBoundaryList,
+    upperBoundaryList,
+  } = enrichedSeriesData;
   if (timestampList && timestampList.length > 0) {
-    const timestamps = timestampList.map((t) => new Date(t).toDateString());
+    const timestamps = timestampList.map((t) => {
+      const d = new Date(t);
+      return `${d.getMonth() + 1}/${d.getDate()}`;
+    });
     return {
-      title: series,
+      title: JSON.stringify(enrichedSeriesData.series.dimension),
       values: {
         title: "Mesure",
         x: timestamps,
         y: valueList,
-        points: isAnomalyList.map((v) => (v ? "A" : undefined)),
+        points: isAnomalyList.map((v) => (v === false ? "A" : undefined)),
+        style: {
+          line: "white",
+        },
+        pointStyle: "red",
       },
-      lowerBounds: {
-        title: "lower bounds",
-        x: timestamps,
-        y: lowerBoundaryList,
-      },
-      upperBounds: {
-        title: "lower bounds",
-        x: timestamps,
-        y: upperBoundaryList,
-      },
-      style: {
-        line: "white",
-      },
-      pointStyle: "red",
+      // lowerBounds: {
+      //   title: "lower bounds",
+      //   x: timestamps,
+      //   y: lowerBoundaryList,
+      // },
+      // upperBounds: {
+      //   title: "lower bounds",
+      //   x: timestamps,
+      //   y: upperBoundaryList,
+      // },
     };
   }
 }
@@ -61,14 +71,15 @@ let grid = null;
 let metricsTable = null;
 let metrics = null;
 let detectionConfigsTable = null;
-let menubar = null;
+let incidents = null;
+let incidentsTable = null;
 let series1Chart = null;
 let series2Chart = null;
-let series3Chart = null;
 let statusBar = null;
 
 let configs = null;
 let focused = null;
+let selectedConfig = null;
 // BLESSED HELPERS //
 
 function createListTable(alignment, padding, isInteractive = false) {
@@ -133,8 +144,17 @@ function createInterface() {
   //   createListTable("left", null, true)
   // );
 
-  metricsTable = grid.set(
-    0,
+  // metricsTable = grid.set(
+  //   0,
+  //   0,
+  //   5,
+  //   13,
+  //   blessed.ListTable,
+  //   createListTable("left", null, true)
+  // );
+
+  detectionConfigsTable = grid.set(
+    1,
     0,
     5,
     13,
@@ -142,13 +162,13 @@ function createInterface() {
     createListTable("left", null, true)
   );
 
-  detectionConfigsTable = grid.set(
-    5,
+  incidentsTable = grid.set(
+    6,
     0,
     5,
     13,
     blessed.ListTable,
-    createListTable("left", padding, true)
+    createListTable("left", null, true)
   );
 
   series1Chart = grid.set(0, 13, 10, 23, contrib.line, {
@@ -219,40 +239,42 @@ function createInterface() {
   // Resizing
   screen.on("resize", () => {
     //metricsTable.emit("attach");
-    menubar.emit("attach");
+    detectionConfigsTable.emit("attach");
+    incidentsTable.emit("attach");
     series2Chart.emit("attach");
-    series3Chart.emit("attach");
+    // series3Chart.emit("attach");
   });
 
   // cycle among metric and detection config tables
-  // screen.key(["tab"], (ch, key) => {
-  //   if (focused === metricsTable || !focused) {
-  //     detectionConfigsTable.focus();
-  //     focused = detectionConfigsTable;
-  //     detectionConfigsTable.selected = detectionConfigsTable.selected || 1;
-  //   } else if (focused === detectionConfigsTable) {
-  //     metricsTable.focus();
-  //     focused = metricsTable;
-  //     metricsTable.selected = metricsTable.selected || 1;
-  //   }
-
-  //   refreshInterface();
-  // });
-
   screen.key(["tab"], (ch, key) => {
-    screen.focusNext();
+    if (focused === incidentsTable || !focused) {
+      detectionConfigsTable.focus();
+      focused = detectionConfigsTable;
+      detectionConfigsTable.selected = detectionConfigsTable.selected || 1;
+    } else if (focused === detectionConfigsTable) {
+      incidentsTable.focus();
+      focused = incidentsTable;
+      incidentsTable.selected = incidentsTable.selected || 1;
+    }
+
+    refreshInterface();
   });
 
   // Open detection configuration
   screen.key(["enter"], (ch, key) => {
-    if (focused === metricsTable) {
-      metric = metrics[metricsTable.selected - 1];
-    } else if (focused === detectionConfigsTable || !focused) {
+    if (focused === detectionConfigsTable || !focused) {
       focused = detectionConfigsTable;
       detectionConfig = configs[detectionConfigsTable.selected - 1];
       statusBar.log(
         `after enter, table 2 selected is now ${detectionConfigsTable.selected}`
       );
+    } else if (focused === incidentsTable) {
+      statusBar.log(
+        `Showing details for incident ${
+          incidents[incidentsTable.selected - 1].id
+        }`
+      );
+      // show incident detail and root causes
     }
 
     refreshInterface();
@@ -267,8 +289,6 @@ async function refreshInterface() {
   const metricId = dataFeeds[1].schema.metrics[0].id;
   configs = await getDetectionConfigs(metricId);
 
-  const seriesData = await getSeriesData(metricId);
-
   // const dataFeedData = dataFeeds.map((feed) => {
   //   let data = [];
   //   data[0] = feed.name;
@@ -276,43 +296,49 @@ async function refreshInterface() {
   //   return data;
   // });
 
-  const selectedFeed = dataFeeds[1];
+  // const selectedFeed = dataFeeds[1];
 
-  metrics = selectedFeed.schema.metrics;
-  const metricData = metrics.map((metric) => {
-    let data = [];
-    data[0] = metric.name;
-    data[1] = metric.description;
-    return data;
-  });
+  // metrics = selectedFeed.schema.metrics;
+  // const metricData = metrics.map((metric) => {
+  //   let data = [];
+  //   data[0] = metric.name;
+  //   data[1] = metric.description;
+  //   return data;
+  // });
 
-  const selectedMetric = metrics[(metricsTable.selected || 1) - 1];
+  selectedConfig = configs[(detectionConfigsTable.selected || 1) - 1];
+
+  const seriesData = await getEnrichedSeriesData(selectedConfig.id);
 
   const configData = configs.map((c) => {
     return [c.name, c.description];
   });
 
-  // Set headers for each table
-  metricData.splice(0, 0, ["Metric Name", "Description"]);
-  configData.splice(0, 0, ["Detection Config Name", "Description"]);
+  incidents = await getIncidents(selectedConfig.id);
+  const incidentData = incidents.map((i) => {
+    return [`${i.id.substr(0, 10)}...`, i.status, i.severity, i.startTime];
+  });
 
-  let oldSelected = metricsTable.selected;
-  metricsTable.setData(metricData);
-  metricsTable.selected = oldSelected || 1;
+  // Set headers for each table
+  configData.splice(0, 0, ["Name", "Description"]);
+  incidentData.splice(0, 0, ["Id", "Status", "Severity", "Started at"]);
 
   oldSelected = detectionConfigsTable.selected;
   detectionConfigsTable.setData(configData);
   detectionConfigsTable.selected = oldSelected || 1;
 
   //series1Chart.setData(transformedSeriesData(seriesData[0]));
-  series1Chart.setData(seriesData[0]);
-  series1Chart.setLabel(
-    " Series: city = 'Redmond' category = 'Home & Garden' "
-  );
+  let seriesToPlot = transformEnrichedSerieData(seriesData[0]);
+  series1Chart.setData([seriesToPlot.values]);
+  series1Chart.setLabel(seriesToPlot.title);
 
-  // if (!focused) {
-  //   detectionConfigsTable.focus();
-  // }
+  seriesToPlot = transformEnrichedSerieData(seriesData[1]);
+  series2Chart.setData([seriesToPlot.values]);
+  series2Chart.setLabel(seriesToPlot.title);
+
+  oldSelected = incidentsTable.selected;
+  incidentsTable.setData(incidentData);
+  incidentsTable.selected = oldSelected || 1;
 
   screen.render();
 }
