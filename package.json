@@ -12,7 +12,9 @@
   "dependencies": {
     "@azure/ai-metrics-advisor": "^1.0.0-beta.1",
     "blessed": "^0.1.81",
-    "blessed-contrib": "file:../blessed-contrib/blessed-contrib-4.8.20-points.1.tgz",
-    "colors": "^1.4.0"
+    "blessed-contrib": "file:blessed-contrib-4.8.20-points.1.tgz",
+    "colors": "^1.4.0",
+    "dotenv": "^8.2.0",
+    "ix": "^4.0.0"
   }
 }

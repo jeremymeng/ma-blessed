@@ -1,3 +1,6 @@
+const path = require("path");
+const colors = require("colors");
+
 module.exports = {
   splash: {
     logo: `
