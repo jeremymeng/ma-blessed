@@ -24,11 +24,40 @@ async function getIncidents(detectionId) {
     return [
       { ...mockedIncidents[0], id: "555555555555555555555555555555555" },
       { ...mockedIncidents[1], id: "666666666666666666666666666666666" },
-      { ...mockedIncidents[2], id: "777777777777777777777777777777777" },
+      { ...mockedIncidents[1], id: "777777777777777777777777777777777" },
     ];
 }
 
-async function getRootCause(incientId) {}
+async function getRootCause(incientId) {
+  if (incientId.startsWith("5")) {
+    return mockedRootCauses2;
+  } else {
+    return mockedRootCauses;
+  }
+}
+
+async function getAnomalies(incident) {
+  const result = [];
+  // const { detectionConfigurationId, startTime, lastOccuredTime } = incident;
+  // for await (const a of client.listAnomaliesForDetectionConfiguration(
+  //   detectionConfigurationId,
+  //   startTime,
+  //   lastOccuredTime
+  // )) {
+  //   result.push(a);
+  // }
+
+  return result;
+}
+
+function toDisplayString(dimensionKey) {
+  let final = "";
+  for (const key of Object.keys(dimensionKey).sort()) {
+    final += `${key} = ${dimensionKey[key]}; `;
+  }
+
+  return final;
+}
 
 // lower pri
 async function provideFeedback() {}
@@ -90,9 +119,18 @@ const mockedIncidents = JSON.parse(
   '[{"id":"34c3049e81884472e3bf3eba76971eeb-1747a763000","detectionConfigurationId":"59f26a57-55f7-41eb-8899-a7268d125557","dimensionKey":{"dimension":{"city":"Khartoum","category":"__SUM__"}},"status":"Active","severity":"Low","startTime":"2020-09-09T00:00:00.000Z","lastOccuredTime":"2020-09-11T00:00:00.000Z"},{"id":"3177d3ddcddc5fac970cb34193902f8e-1747a763000","detectionConfigurationId":"59f26a57-55f7-41eb-8899-a7268d125557","dimensionKey":{"dimension":{"city":"Chicago","category":"Software & Computer Games"}},"status":"Active","severity":"Low","startTime":"2020-09-11T00:00:00.000Z","lastOccuredTime":"2020-09-11T00:00:00.000Z"}]'
 );
 
+const mockedRootCauses = JSON.parse(
+  '[{"dimensionKey":{"dimension":{"city":"__SUM__","category":"Electronics (Accessories)"}},"path":[],"score":1,"description":"All sub series contribute to current incident under category = Electronics (Accessories)"}]'
+);
+const mockedRootCauses2 = JSON.parse(
+  '[{"dimensionKey":{"dimension":{"category":"Office Products","city":"Karachi"}},"path":["city"],"score":0.2382570419169871,"description":"Increase on category = Office Products | city = Karachi contributes the most to current incident."}]'
+);
+
 module.exports.getDataFeeds = getDataFeeds;
 module.exports.getDetectionConfigs = getDetectionConfigs;
 module.exports.getEnrichedSeriesData = getEnrichedSeriesData;
 module.exports.getIncidents = getIncidents;
 module.exports.getRootCause = getRootCause;
-module.exports.provideFeedback = provideFeedback();
+module.exports.provideFeedback = provideFeedback;
+module.exports.getAnomalies = getAnomalies;
+module.exports.toDisplayString = toDisplayString;

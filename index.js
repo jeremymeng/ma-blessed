@@ -1,12 +1,15 @@
 const blessed = require("blessed");
 const contrib = require("blessed-contrib");
 const fs = require("fs");
-const { splash, baseConfig, filePaths, colorScheme } = require("./constants");
+const { splash, colorScheme } = require("./constants");
 const {
   getDataFeeds,
   getDetectionConfigs,
   getEnrichedSeriesData,
   getIncidents,
+  getAnomalies,
+  getRootCause,
+  toDisplayString,
 } = require("./mahelpers");
 
 async function main() {
@@ -38,7 +41,7 @@ function transformEnrichedSerieData(enrichedSeriesData) {
       return `${d.getMonth() + 1}/${d.getDate()}`;
     });
     return {
-      title: JSON.stringify(enrichedSeriesData.series.dimension),
+      title: ` ${toDisplayString(enrichedSeriesData.series.dimension)} `,
       values: {
         title: "Mesure",
         x: timestamps,
@@ -68,6 +71,7 @@ function transformEnrichedSerieData(enrichedSeriesData) {
 
 let screen = null;
 let grid = null;
+let titleText = null;
 let metricsTable = null;
 let metrics = null;
 let detectionConfigsTable = null;
@@ -75,7 +79,10 @@ let incidents = null;
 let incidentsTable = null;
 let series1Chart = null;
 let series2Chart = null;
+let incidentDetailText = null;
+let incidentToShow = null;
 let statusBar = null;
+let loader = null;
 
 let configs = null;
 let focused = null;
@@ -154,24 +161,33 @@ function createInterface() {
   // );
 
   detectionConfigsTable = grid.set(
-    1,
+    3,
     0,
-    5,
+    6,
     13,
     blessed.ListTable,
-    createListTable("left", null, true)
+    createListTable("left", padding, true)
   );
 
   incidentsTable = grid.set(
-    6,
+    10,
     0,
-    5,
+    13,
     13,
     blessed.ListTable,
-    createListTable("left", null, true)
+    createListTable("left", padding, true)
   );
 
-  series1Chart = grid.set(0, 13, 10, 23, contrib.line, {
+  titleText = grid.set(0, 0, 3, 36, blessed.text, {
+    parent: screen,
+    top: "center",
+    left: "center",
+    width: "100%",
+    height: "100%",
+    content: "Datafeed:  Metric:",
+  });
+
+  series1Chart = grid.set(3, 13, 10, 23, contrib.line, {
     style: {
       line: "yellow",
       text: "green",
@@ -184,7 +200,7 @@ function createInterface() {
     label: " Series 1 ".bold.red,
   });
 
-  series2Chart = grid.set(10, 13, 10, 23, contrib.line, {
+  series2Chart = grid.set(13, 13, 10, 23, contrib.line, {
     style: {
       line: "yellow",
       text: "green",
@@ -213,7 +229,16 @@ function createInterface() {
   detectionConfigsTable.focus();
   focused = detectionConfigsTable;
 
-  statusBar = grid.set(20, 0, 15, 36, blessed.log, {
+  incidentDetailText = grid.set(23, 0, 9, 36, blessed.text, {
+    parent: screen,
+    top: "center",
+    left: "center",
+    width: "100%",
+    height: "100%",
+    content: "Incident Details",
+  });
+
+  statusBar = grid.set(32, 0, 5, 36, blessed.log, {
     parent: screen,
     top: "70",
     left: "center",
@@ -236,11 +261,26 @@ function createInterface() {
     },
   });
 
+  loader = blessed.loading({
+    parent: screen,
+    border: "line",
+    height: "shrink",
+    width: "half",
+    top: "center",
+    left: "center",
+    label: " {blue-fg}Loader{/blue-fg} ",
+    tags: true,
+    keys: true,
+    hidden: true,
+    vi: true,
+  });
+
   // Resizing
   screen.on("resize", () => {
     //metricsTable.emit("attach");
     detectionConfigsTable.emit("attach");
     incidentsTable.emit("attach");
+    incidentDetailText.emit("attach");
     series2Chart.emit("attach");
     // series3Chart.emit("attach");
   });
@@ -266,15 +306,11 @@ function createInterface() {
       focused = detectionConfigsTable;
       detectionConfig = configs[detectionConfigsTable.selected - 1];
       statusBar.log(
-        `after enter, table 2 selected is now ${detectionConfigsTable.selected}`
+        `Selected detectionc configuration '${detectionConfig.name}'`
       );
     } else if (focused === incidentsTable) {
-      statusBar.log(
-        `Showing details for incident ${
-          incidents[incidentsTable.selected - 1].id
-        }`
-      );
-      // show incident detail and root causes
+      incidentToShow = incidents[incidentsTable.selected - 1];
+      statusBar.log(`Showing details for incident ${incidentToShow.id}`);
     }
 
     refreshInterface();
@@ -287,7 +323,14 @@ function createInterface() {
 async function refreshInterface() {
   const dataFeeds = await getDataFeeds();
   const metricId = dataFeeds[1].schema.metrics[0].id;
+
+  titleText.setContent(
+    `Data feed:  '${dataFeeds[1].name}'; Metric: '${dataFeeds[1].schema.metrics[0].name}'`
+  );
+
+  loader.load("Retrieving detection configurations from service...");
   configs = await getDetectionConfigs(metricId);
+  loader.stop();
 
   // const dataFeedData = dataFeeds.map((feed) => {
   //   let data = [];
@@ -308,20 +351,30 @@ async function refreshInterface() {
 
   selectedConfig = configs[(detectionConfigsTable.selected || 1) - 1];
 
+  loader.load("Retrieving enriched series data from service...");
   const seriesData = await getEnrichedSeriesData(selectedConfig.id);
+  loader.stop();
 
   const configData = configs.map((c) => {
-    return [c.name, c.description];
+    return [c.name > 20 ? `${c.name.substr(0, 17)}...` : c.name, c.description];
   });
 
+  loader.load("Retrieving incidents for detection config...");
   incidents = await getIncidents(selectedConfig.id);
+  loader.stop();
+
   const incidentData = incidents.map((i) => {
     return [`${i.id.substr(0, 10)}...`, i.status, i.severity, i.startTime];
   });
 
   // Set headers for each table
-  configData.splice(0, 0, ["Name", "Description"]);
-  incidentData.splice(0, 0, ["Id", "Status", "Severity", "Started at"]);
+  configData.splice(0, 0, ["Detection Config", "Description"]);
+  incidentData.splice(0, 0, [
+    "Incident Id",
+    "Status",
+    "Severity",
+    "Started at",
+  ]);
 
   oldSelected = detectionConfigsTable.selected;
   detectionConfigsTable.setData(configData);
@@ -337,8 +390,38 @@ async function refreshInterface() {
   series2Chart.setLabel(seriesToPlot.title);
 
   oldSelected = incidentsTable.selected;
+  statusBar;
   incidentsTable.setData(incidentData);
-  incidentsTable.selected = oldSelected || 1;
+  incidentsTable.selected =
+    oldSelected <= incidentData.length ? oldSelected : incidentData.length;
+
+  if (incidentToShow) {
+    loader.load("Retrieving anomalies and root causes for incident...");
+    const anomalies = await getAnomalies(incidentToShow);
+    const causes = await getRootCause(incidentToShow.id);
+    loader.stop();
+
+    const rootCauses = causes.map((r, index) => {
+      let path = "";
+      for (const segment of r.path) {
+        path += "=> ";
+        path += segment;
+      }
+      return `Series ${index + 1}: ${toDisplayString(
+        r.dimensionKey.dimension
+      )}, score: ${r.score}, ${path ? "path: " + path : ""}
+                  description: ${r.description}`;
+    });
+    incidentDetailText.setContent(
+      `Details information about incident ${incidentToShow.id}
+
+      Severity: ${incidentToShow.severity}          # of anomalies: ${anomalies.length}     Start time: ${incidentToShow.startTime}             Last occurred: ${incidentToShow.lastOccuredTime}
+
+      Root cause(s):
+        ${rootCauses}
+      `
+    );
+  }
 
   screen.render();
 }
