@@ -238,7 +238,7 @@ function createInterface() {
     content: "Incident Details",
   });
 
-  statusBar = grid.set(32, 0, 5, 36, blessed.log, {
+  statusBar = grid.set(32, 0, 4, 36, blessed.log, {
     parent: screen,
     top: "70",
     left: "center",
