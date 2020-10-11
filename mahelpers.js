@@ -15,7 +15,11 @@ async function getDetectionConfigs(metricId) {
 }
 
 async function getEnrichedSeriesData(detectionConfigId) {
-  return mockedSeriesData;
+  if (detectionConfigId.startsWith("3")) {
+    return mockedSeriesData;
+  } else {
+    return [mockedSeriesData[1], mockedSeriesData[0]];
+  }
 }
 
 async function getIncidents(detectionId) {
