@@ -391,12 +391,15 @@ async function refreshInterface() {
 
   //series1Chart.setData(transformedSeriesData(seriesData[0]));
   let seriesToPlot = transformEnrichedSerieData(seriesData[0]);
-  series1Chart.setData([seriesToPlot.values]);
-  series1Chart.setLabel(seriesToPlot.title);
-
+  if (seriesToPlot) {
+    series1Chart.setData([seriesToPlot.values]);
+    series1Chart.setLabel(seriesToPlot.title);
+  }
   seriesToPlot = transformEnrichedSerieData(seriesData[1]);
-  series2Chart.setData([seriesToPlot.values]);
-  series2Chart.setLabel(seriesToPlot.title);
+  if (seriesToPlot) {
+    series2Chart.setData([seriesToPlot.values]);
+    series2Chart.setLabel(seriesToPlot.title);
+  }
 
   oldSelected = incidentsTable.selected;
   statusBar;
