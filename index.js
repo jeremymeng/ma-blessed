@@ -46,7 +46,7 @@ function transformEnrichedSerieData(enrichedSeriesData) {
         title: "Mesure",
         x: timestamps,
         y: valueList,
-        points: isAnomalyList.map((v) => (v === false ? "A" : undefined)),
+        points: isAnomalyList.map((v) => (v === true ? "A" : undefined)),
         style: {
           line: "white",
         },
@@ -323,10 +323,10 @@ function createInterface() {
 
 async function refreshInterface() {
   const dataFeeds = await getDataFeeds();
-  const metricId = dataFeeds[3].schema.metrics[0].id;
+  const metricId = "802153a9-1671-4a6f-901e-66bbf09384d9";
 
   titleText.setContent(
-    `Data feed:  '${dataFeeds[3].name}'; Metric: '${dataFeeds[3].schema.metrics[0].name}'`
+    `Data feed:  'AZ SQL Data Feed'; Metric: 'Cost'`
   );
 
   loader.load("Retrieving detection configurations from service...");

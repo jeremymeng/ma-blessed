@@ -48,7 +48,9 @@ async function getDetectionConfigs(metricId) {
   for await (const config of adminClient.listMetricAnomalyDetectionConfigurations(
     metricId
   )) {
-    detectionConfigs.push(config);
+    if(!config.name.startsWith("detection-all-as-anomalies")){
+      detectionConfigs.push(config);
+    }    
   }
   detectionConfigs.reverse();
   cache.detectionConfigs[metricId] = detectionConfigs;
@@ -66,11 +68,11 @@ async function getEnrichedSeriesData(detectionConfigId) {
     new Date("08/21/2020"),
     new Date("09/21/2020"),
     [
-      { dimension: { city: "Osaka", category: "Handmade" } },
+      { dimension: { city: "Chicago", category: "Home & Garden" } },
       {
         dimension: {
           city: "Manila",
-          category: "Shoes Handbags & Sunglasses",
+          category: "Cell Phones",
         },
       },
     ]
