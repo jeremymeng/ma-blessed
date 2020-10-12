@@ -20,7 +20,7 @@ module.exports = {
 
 
 `.yellow.bold,
-    description: "    Metrics Advisor demo app.\n".red.bold,
+    description: "    Metrics Advisor demo app.\n".bold,
     fetchingData: (data) => `    Fetching ${data}...`.yellow,
   },
   colorScheme: {

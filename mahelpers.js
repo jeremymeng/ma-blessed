@@ -50,6 +50,7 @@ async function getDetectionConfigs(metricId) {
   )) {
     detectionConfigs.push(config);
   }
+  detectionConfigs.reverse();
   cache.detectionConfigs[metricId] = detectionConfigs;
   return detectionConfigs;
   // if (detectionConfigs.length > 0) return detectionConfigs;
@@ -127,6 +128,9 @@ async function getAnomalies(incident, detecionConfigId) {
   const result = [];
 
   const { startTime, lastOccuredTime } = incident;
+  if (startTime.getTime() >= lastOccuredTime.getTime()) {
+    lastOccuredTime.setTime(startTime.getTime() + 10 * 60 * 1000);
+  }
   for await (const a of client.listAnomaliesForDetectionConfiguration(
     detecionConfigId,
     startTime,

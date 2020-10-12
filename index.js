@@ -15,7 +15,7 @@ const {
 async function main() {
   console.log(splash.logo);
   console.log(splash.description);
-  console.log("Press any key to continue");
+  await delay(1000);
 
   // process.stdin.setRawMode(true);
   // process.stdin.resume();
@@ -268,7 +268,7 @@ function createInterface() {
     width: "half",
     top: "center",
     left: "center",
-    label: " {blue-fg}Loader{/blue-fg} ",
+    label: " {blue-fg}Running{/blue-fg} ",
     tags: true,
     keys: true,
     hidden: true,
@@ -442,6 +442,9 @@ async function refreshInterface() {
   screen.render();
 }
 
+async function delay(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
 main().catch((e) => {
   statusBar.log(e);
 });
