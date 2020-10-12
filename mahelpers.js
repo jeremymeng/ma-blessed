@@ -11,7 +11,7 @@ const endpoint = process.env["METRICS_ADVISOR_ENDPOINT"];
 const subscriptionKey = process.env["METRICS_ADVISOR_SUBSCRIPTION_KEY"];
 const apiKey = process.env["METRICS_ADVISOR_API_KEY"];
 const credential = new MetricsAdvisorKeyCredential(subscriptionKey, apiKey);
-const detectionConfigId = process.env["METRICS_ADVISOR_DETECTION_CONFIG_ID"];
+const detectionConfigId = process.env["METRICS_ADVISOR_AZURE_BlOB_DETECTION_CONFIG_ID"];
 const metricId = process.env["METRICS_ADVISOR_AZURE_Blob_METRIC_ID_1"];
 const incidentId = process.env["METRICS_ADVISOR_AZURE_BLOB_INCIDENT_ID"];
 
@@ -19,30 +19,35 @@ const client = new MetricsAdvisorClient(endpoint, credential);
 const adminClient = new MetricsAdvisorAdministrationClient(endpoint, credential);
 
 async function getDataFeeds() {
-  var listFeeds = [];
+  var listFeeds = {};
+  listFeeds.data = [];
   for await (const datatFeed of client.listDataFeeds()) {
     //console.log(`id :${datatFeed.id}, name: ${datatFeed.name}`);
-    listFeeds[datatFeed.id] = datatFeed;
+    listFeeds.data.push(datatFeed);
   }
-  if (listFeeds.length > 0)
+  if (listFeeds.length > 0){
     return listFeeds;
+  }
+    
   return mockDataFeeds.data;
 }
 
 async function getDetectionConfigs(metricId) {
   //console.log(`Listing detection configurations for metric '${metricId}'...`);
-  let i = 1;
   var detectionConfigs = [];
   for await (const config of adminClient.listMetricAnomalyDetectionConfigurations(metricId)) {
-    // console.log(`  detection configuration ${i++}`);
-    // console.log(config);
-    detectionConfigs[config.id] = config;
+    console.log(`  detection configuration ${i++}`);
+    console.log(config);
+    detectionConfigs.push(config);
   }
-  return mockedConfigs;
+  if(detectionConfigs.length > 0)
+    return detectionConfigs;
+  else 
+    return mockedConfigs;
 }
 
 async function getEnrichedSeriesData(detectionConfigId) {
-  console.log("Retrieving metric enriched series data...");
+  //console.log("Retrieving metric enriched series data...");
   try {
     const result = await client.getMetricEnrichedSeriesData(
       detectionConfigId,
@@ -54,14 +59,6 @@ async function getEnrichedSeriesData(detectionConfigId) {
       ]
     );
 
-    // for (const r of result.results || []) {
-    //   console.log("series:");
-    //   console.log(r.series);
-    //   console.log("isAbnomalList:");
-    //   console.table(r.isAnomalyList);
-    //   console.log("expectedValueList:");
-    //   console.table(r.expectedValueList);
-    // }
     if(result.results.length > 0){
       return result.results;
     }
@@ -77,20 +74,21 @@ async function getEnrichedSeriesData(detectionConfigId) {
 }
 
 async function getIncidents(detectionConfigId) {   
-  const incidentList = client.listIncidentsForDetectionConfiguration(detectionConfigId, new Date("09/13/2020"), new Date("09/19/2020"));
+  const incidentList = client.listIncidentsForDetectionConfiguration(detectionConfigId, new Date("09/06/2020"),
+  new Date("09/11/2020"));
   var cachedIncidents = [];
   for await(const incident of incidentList){
     cachedIncidents[incident.id] = incident;
   }
   if(cachedIncidents.length > 0){
-    console.table(cachedIncidents,[
-      "id",
-      "severity",
-      "status",
-      "startTime",
-      "endTime",
-      "detectionConfigurationId"
-    ] )
+    // console.table(cachedIncidents,[
+    //   "id",
+    //   "severity",
+    //   "status",
+    //   "startTime",
+    //   "endTime",
+    //   "detectionConfigurationId"
+    // ] )
     return cachedIncidents;
   }
   if (detectionConfigId.startsWith("3")) return mockedIncidents;
@@ -238,8 +236,8 @@ const mockedRootCauses2 = JSON.parse(
   '[{"dimensionKey":{"dimension":{"category":"Office Products","city":"Karachi"}},"path":["city"],"score":0.2382570419169871,"description":"Increase on category = Office Products | city = Karachi contributes the most to current incident."}]'
 );
 
-var startTime = new Date("09/13/2020");
-var lastOccuredTime = new Date("09/19/2020");
+var startTime = new Date("09/06/2020");
+var lastOccuredTime = new Date("09/11/2020");
 module.exports.getDataFeeds = getDataFeeds;
 module.exports.getDetectionConfigs = getDetectionConfigs(metricId);
 module.exports.getEnrichedSeriesData = getEnrichedSeriesData(detectionConfigId);
