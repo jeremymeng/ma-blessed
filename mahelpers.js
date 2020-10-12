@@ -3,18 +3,69 @@ const {
   MetricsAdvisorClient,
   MetricsAdvisorAdministrationClient,
 } = require("@azure/ai-metrics-advisor");
+const { list } = require("blessed");
 
 require("dotenv").config();
 
+const endpoint = process.env["METRICS_ADVISOR_ENDPOINT"];
+const subscriptionKey = process.env["METRICS_ADVISOR_SUBSCRIPTION_KEY"];
+const apiKey = process.env["METRICS_ADVISOR_API_KEY"];
+const credential = new MetricsAdvisorKeyCredential(subscriptionKey, apiKey);
+const detectionConfigId = process.env["METRICS_ADVISOR_AZURE_BlOB_DETECTION_CONFIG_ID"];
+const metricId = process.env["METRICS_ADVISOR_AZURE_Blob_METRIC_ID_1"];
+const incidentId = process.env["METRICS_ADVISOR_AZURE_BLOB_INCIDENT_ID"];
+
+const client = new MetricsAdvisorClient(endpoint, credential);
+const adminClient = new MetricsAdvisorAdministrationClient(endpoint, credential);
+
 async function getDataFeeds() {
+  var listFeeds = {};
+  listFeeds.data = [];
+  for await (const datatFeed of client.listDataFeeds()) {
+    //console.log(`id :${datatFeed.id}, name: ${datatFeed.name}`);
+    listFeeds.data.push(datatFeed);
+  }
+  if (listFeeds.length > 0){
+    return listFeeds;
+  }
+    
   return mockDataFeeds.data;
 }
 
 async function getDetectionConfigs(metricId) {
-  return mockedConfigs;
+  //console.log(`Listing detection configurations for metric '${metricId}'...`);
+  var detectionConfigs = [];
+  for await (const config of adminClient.listMetricAnomalyDetectionConfigurations(metricId)) {
+    console.log(`  detection configuration ${i++}`);
+    console.log(config);
+    detectionConfigs.push(config);
+  }
+  if(detectionConfigs.length > 0)
+    return detectionConfigs;
+  else 
+    return mockedConfigs;
 }
 
 async function getEnrichedSeriesData(detectionConfigId) {
+  //console.log("Retrieving metric enriched series data...");
+  try {
+    const result = await client.getMetricEnrichedSeriesData(
+      detectionConfigId,
+      new Date("01/01/2020"),
+      new Date("09/12/2020"),
+      [
+        { dimension: { Dim1: "Common Lime", Dim2: "Amphibian" } },
+        { dimension: { Dim1: "Common Beech", Dim2: "Ant" } }
+      ]
+    );
+
+    if(result.results.length > 0){
+      return result.results;
+    }
+  } catch (err) {
+    console.log("!!!!!  error in listing enriched series data");
+    console.log(err);
+  }
   if (detectionConfigId.startsWith("3")) {
     return mockedSeriesData;
   } else {
@@ -22,8 +73,25 @@ async function getEnrichedSeriesData(detectionConfigId) {
   }
 }
 
-async function getIncidents(detectionId) {
-  if (detectionId.startsWith("3")) return mockedIncidents;
+async function getIncidents(detectionConfigId) {   
+  const incidentList = client.listIncidentsForDetectionConfiguration(detectionConfigId, new Date("09/06/2020"),
+  new Date("09/11/2020"));
+  var cachedIncidents = [];
+  for await(const incident of incidentList){
+    cachedIncidents[incident.id] = incident;
+  }
+  if(cachedIncidents.length > 0){
+    // console.table(cachedIncidents,[
+    //   "id",
+    //   "severity",
+    //   "status",
+    //   "startTime",
+    //   "endTime",
+    //   "detectionConfigurationId"
+    // ] )
+    return cachedIncidents;
+  }
+  if (detectionConfigId.startsWith("3")) return mockedIncidents;
   else
     return [
       { ...mockedIncidents[0], id: "555555555555555555555555555555555" },
@@ -32,24 +100,18 @@ async function getIncidents(detectionId) {
     ];
 }
 
-async function getRootCause(incientId) {
-  if (incientId.startsWith("5")) {
-    return mockedRootCauses2;
-  } else {
-    return mockedRootCauses;
-  }
-}
 
 async function getAnomalies(incident) {
   const result = [];
-  // const { detectionConfigurationId, startTime, lastOccuredTime } = incident;
-  // for await (const a of client.listAnomaliesForDetectionConfiguration(
-  //   detectionConfigurationId,
-  //   startTime,
-  //   lastOccuredTime
-  // )) {
-  //   result.push(a);
-  // }
+
+  const { detectionConfigurationId, startTime, lastOccuredTime } = incident;
+  for await (const a of client.listAnomaliesForDetectionConfiguration(
+    detectionConfigurationId,
+    startTime,
+    lastOccuredTime
+  )) {
+    result.push(a);
+  }
 
   return result;
 }
@@ -62,9 +124,53 @@ function toDisplayString(dimensionKey) {
 
   return final;
 }
+async function getRootCause(incidentId, detectionConfigId) {
+  //console.log("Retrieving root causes...");
+  const result = await client.getIncidentRootCauses(detectionConfigId, incidentId);
+  //console.log(result.rootCauses);
+  if(result.rootCauses.length > 0)
+    return result.rootCauses;
+  if (incientId.startsWith("5")) {
+    return mockedRootCauses2;
+  } else {
+    return mockedRootCauses;
+  }
+}
 
-// lower pri
-async function provideFeedback() {}
+async function providePeriodFeedback(metricId) {
+  //console.log("Creating a period feedback...");
+  const periodFeedback = {
+    metricId,
+    feedbackType: "Period",
+    periodType: "AutoDetect",
+    periodValue: 4,
+    dimensionFilter: { dimension: { Dim1: "Common Lime", Dim2: "Ant" } }
+  };
+  return await client.createMetricFeedback(periodFeedback);
+}
+
+async function provideChangePointFeedback(metricId) {
+  //console.log("Creating a change point feedback...");
+  const changePointFeedback = {
+    metricId,
+    feedbackType: "ChangePoint",
+    startTime: new Date("2020/08/05"),
+    value: "ChangePoint",
+    dimensionFilter: { dimension: { Dim1: "Common Lime", Dim2: "Ant" } }
+  };
+  return await client.createMetricFeedback(changePointFeedback);
+}
+
+async function provideCommentFeedback(metricId) {
+  //console.log("Creating a comment feedback...");
+  const commendFeedback = {
+    metricId,
+    feedbackType: "Comment",
+    dimensionFilter: { dimension: { Dim1: "Common Lime", Dim2: "Amphibian" } },
+    comment: "This is a comment"
+  };
+  return await client.createMetricFeedback(commendFeedback);
+}
 
 const mockDataFeeds = {
   data: [
@@ -130,11 +236,15 @@ const mockedRootCauses2 = JSON.parse(
   '[{"dimensionKey":{"dimension":{"category":"Office Products","city":"Karachi"}},"path":["city"],"score":0.2382570419169871,"description":"Increase on category = Office Products | city = Karachi contributes the most to current incident."}]'
 );
 
+var startTime = new Date("09/06/2020");
+var lastOccuredTime = new Date("09/11/2020");
 module.exports.getDataFeeds = getDataFeeds;
-module.exports.getDetectionConfigs = getDetectionConfigs;
-module.exports.getEnrichedSeriesData = getEnrichedSeriesData;
-module.exports.getIncidents = getIncidents;
-module.exports.getRootCause = getRootCause;
-module.exports.provideFeedback = provideFeedback;
-module.exports.getAnomalies = getAnomalies;
+module.exports.getDetectionConfigs = getDetectionConfigs(metricId);
+module.exports.getEnrichedSeriesData = getEnrichedSeriesData(detectionConfigId);
+module.exports.getIncidents = getIncidents(detectionConfigId);
+module.exports.getRootCause = getRootCause(incidentId, detectionConfigId);
+module.exports.provideChangePointFeedback = provideChangePointFeedback(metricId);
+module.exports.provideCommentFeedback = provideCommentFeedback(metricId);
+module.exports.providePeriodFeedback = providePeriodFeedback(metricId);
+module.exports.getAnomalies = getAnomalies({ detectionConfigId, startTime, lastOccuredTime});
 module.exports.toDisplayString = toDisplayString;
