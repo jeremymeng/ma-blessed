@@ -21,7 +21,7 @@ const adminClient = new MetricsAdvisorAdministrationClient(endpoint, credential)
 async function getDataFeeds() {
   var listFeeds = [];
   for await (const datatFeed of client.listDataFeeds()) {
-    console.log(`id :${datatFeed.id}, name: ${datatFeed.name}`);
+    //console.log(`id :${datatFeed.id}, name: ${datatFeed.name}`);
     listFeeds[datatFeed.id] = datatFeed;
   }
   if (listFeeds.length > 0)
@@ -30,12 +30,12 @@ async function getDataFeeds() {
 }
 
 async function getDetectionConfigs(metricId) {
-  console.log(`Listing detection configurations for metric '${metricId}'...`);
+  //console.log(`Listing detection configurations for metric '${metricId}'...`);
   let i = 1;
   var detectionConfigs = [];
   for await (const config of adminClient.listMetricAnomalyDetectionConfigurations(metricId)) {
-    console.log(`  detection configuration ${i++}`);
-    console.log(config);
+    // console.log(`  detection configuration ${i++}`);
+    // console.log(config);
     detectionConfigs[config.id] = config;
   }
   return mockedConfigs;
@@ -54,14 +54,14 @@ async function getEnrichedSeriesData(detectionConfigId) {
       ]
     );
 
-    for (const r of result.results || []) {
-      console.log("series:");
-      console.log(r.series);
-      console.log("isAbnomalList:");
-      console.table(r.isAnomalyList);
-      console.log("expectedValueList:");
-      console.table(r.expectedValueList);
-    }
+    // for (const r of result.results || []) {
+    //   console.log("series:");
+    //   console.log(r.series);
+    //   console.log("isAbnomalList:");
+    //   console.table(r.isAnomalyList);
+    //   console.log("expectedValueList:");
+    //   console.table(r.expectedValueList);
+    // }
     if(result.results.length > 0){
       return result.results;
     }
@@ -127,9 +127,9 @@ function toDisplayString(dimensionKey) {
   return final;
 }
 async function getRootCause(incidentId, detectionConfigId) {
-  console.log("Retrieving root causes...");
+  //console.log("Retrieving root causes...");
   const result = await client.getIncidentRootCauses(detectionConfigId, incidentId);
-  console.log(result.rootCauses);
+  //console.log(result.rootCauses);
   if(result.rootCauses.length > 0)
     return result.rootCauses;
   if (incientId.startsWith("5")) {
@@ -139,8 +139,8 @@ async function getRootCause(incidentId, detectionConfigId) {
   }
 }
 
-async function providePeriodFeedback(client, metricId) {
-  console.log("Creating a period feedback...");
+async function providePeriodFeedback(metricId) {
+  //console.log("Creating a period feedback...");
   const periodFeedback = {
     metricId,
     feedbackType: "Period",
@@ -152,7 +152,7 @@ async function providePeriodFeedback(client, metricId) {
 }
 
 async function provideChangePointFeedback(metricId) {
-  console.log("Creating a change point feedback...");
+  //console.log("Creating a change point feedback...");
   const changePointFeedback = {
     metricId,
     feedbackType: "ChangePoint",
@@ -164,7 +164,7 @@ async function provideChangePointFeedback(metricId) {
 }
 
 async function provideCommentFeedback(metricId) {
-  console.log("Creating a comment feedback...");
+  //console.log("Creating a comment feedback...");
   const commendFeedback = {
     metricId,
     feedbackType: "Comment",
@@ -248,5 +248,5 @@ module.exports.getRootCause = getRootCause(incidentId, detectionConfigId);
 module.exports.provideChangePointFeedback = provideChangePointFeedback(metricId);
 module.exports.provideCommentFeedback = provideCommentFeedback(metricId);
 module.exports.providePeriodFeedback = providePeriodFeedback(metricId);
-module.exports.getAnomalies = getAnomalies({ detectionConfigurationId, startTime, lastOccuredTime});
+module.exports.getAnomalies = getAnomalies({ detectionConfigId, startTime, lastOccuredTime});
 module.exports.toDisplayString = toDisplayString;
