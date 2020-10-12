@@ -65,6 +65,8 @@ async function getEnrichedSeriesData(detectionConfigId) {
     new Date("08/21/2020"),
     new Date("09/21/2020"),
     [
+      { dimension: { Dim1: "Common Lime", Dim2: "Amphibian" } },
+      { dimension: { Dim1: "Common Beech", Dim2: "Ant" } },
       { dimension: { city: "Osaka", category: "Handmade" } },
       {
         dimension: {
