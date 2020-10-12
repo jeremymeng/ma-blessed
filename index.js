@@ -17,14 +17,14 @@ async function main() {
   console.log(splash.description);
   console.log("Press any key to continue");
 
-  // process.stdin.setRawMode(true);
-  // process.stdin.resume();
-  // process.stdin.on("data", () =>
-  {
-    createInterface();
-    await refreshInterface();
-  }
-  // );
+  process.stdin.setRawMode(true);
+  process.stdin.resume();
+    process.stdin.on("data", () =>
+    {
+      createInterface();
+      await refreshInterface();
+    }
+  );
 }
 
 function transformEnrichedSerieData(enrichedSeriesData) {
@@ -286,7 +286,7 @@ function createInterface() {
   });
 
   // cycle among metric and detection config tables
-  screen.key(["tab"], (ch, key) => {
+  screen.key(["tab"], async (ch, key) => {
     if (focused === incidentsTable || !focused) {
       detectionConfigsTable.focus();
       focused = detectionConfigsTable;
@@ -297,14 +297,15 @@ function createInterface() {
       incidentsTable.selected = incidentsTable.selected || 1;
     }
 
-    refreshInterface();
+    await refreshInterface();
   });
 
   // Open detection configuration
-  screen.key(["enter"], (ch, key) => {
+  screen.key(["enter"], async (ch, key) => {
     if (focused === detectionConfigsTable || !focused) {
       focused = detectionConfigsTable;
       detectionConfig = configs[detectionConfigsTable.selected - 1];
+      incidentToShow = undefined;
       statusBar.log(
         `Selected detectionc configuration '${detectionConfig.name}'`
       );
@@ -313,7 +314,7 @@ function createInterface() {
       statusBar.log(`Showing details for incident ${incidentToShow.id}`);
     }
 
-    refreshInterface();
+    await refreshInterface();
   });
 
   // Quit
@@ -322,10 +323,10 @@ function createInterface() {
 
 async function refreshInterface() {
   const dataFeeds = await getDataFeeds();
-  const metricId = dataFeeds[1].schema.metrics[0].id;
+  const metricId = dataFeeds[3].schema.metrics[0].id;
 
   titleText.setContent(
-    `Data feed:  '${dataFeeds[1].name}'; Metric: '${dataFeeds[1].schema.metrics[0].name}'`
+    `Data feed:  '${dataFeeds[3].name}'; Metric: '${dataFeeds[3].schema.metrics[0].name}'`
   );
 
   loader.load("Retrieving detection configurations from service...");
@@ -362,9 +363,17 @@ async function refreshInterface() {
   loader.load("Retrieving incidents for detection config...");
   incidents = await getIncidents(selectedConfig.id);
   loader.stop();
+  statusBar.log(
+    `Received ${incidents.length} incident(s) for detection config ${selectedConfig.id}`
+  );
 
   const incidentData = incidents.map((i) => {
-    return [`${i.id.substr(0, 10)}...`, i.status, i.severity, i.startTime];
+    return [
+      `${i.id.substr(0, 10)}...`,
+      i.status || "",
+      i.severity || "",
+      i.startTime ? i.startTime.toDateString() : "",
+    ];
   });
 
   // Set headers for each table
@@ -397,8 +406,8 @@ async function refreshInterface() {
 
   if (incidentToShow) {
     loader.load("Retrieving anomalies and root causes for incident...");
-    const anomalies = await getAnomalies(incidentToShow);
-    const causes = await getRootCause(incidentToShow.id);
+    const anomalies = await getAnomalies(incidentToShow, selectedConfig.id);
+    const causes = await getRootCause(incidentToShow.id, selectedConfig.id);
     loader.stop();
 
     const rootCauses = causes.map((r, index) => {
@@ -415,12 +424,16 @@ async function refreshInterface() {
     incidentDetailText.setContent(
       `Details information about incident ${incidentToShow.id}
 
-      Severity: ${incidentToShow.severity}          # of anomalies: ${anomalies.length}     Start time: ${incidentToShow.startTime}             Last occurred: ${incidentToShow.lastOccuredTime}
+      Severity: ${incidentToShow.severity}          # of anomalies: ${anomalies.length}
+
+      Start time: ${incidentToShow.startTime}             Last occurred: ${incidentToShow.lastOccuredTime}
 
       Root cause(s):
         ${rootCauses}
       `
     );
+  } else {
+    incidentDetailText.setContent("Incident details");
   }
 
   screen.render();

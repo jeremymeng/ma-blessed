@@ -3,7 +3,6 @@ const {
   MetricsAdvisorClient,
   MetricsAdvisorAdministrationClient,
 } = require("@azure/ai-metrics-advisor");
-const { list } = require("blessed");
 
 require("dotenv").config();
 
@@ -11,108 +10,132 @@ const endpoint = process.env["METRICS_ADVISOR_ENDPOINT"];
 const subscriptionKey = process.env["METRICS_ADVISOR_SUBSCRIPTION_KEY"];
 const apiKey = process.env["METRICS_ADVISOR_API_KEY"];
 const credential = new MetricsAdvisorKeyCredential(subscriptionKey, apiKey);
-const detectionConfigId = process.env["METRICS_ADVISOR_AZURE_BlOB_DETECTION_CONFIG_ID"];
-const metricId = process.env["METRICS_ADVISOR_AZURE_Blob_METRIC_ID_1"];
-const incidentId = process.env["METRICS_ADVISOR_AZURE_BLOB_INCIDENT_ID"];
+// const detectionConfigId = process.env["METRICS_ADVISOR_AZURE_BlOB_DETECTION_CONFIG_ID"];
+// const metricId = "342346a5-4e6d-4cb7-9a0a-41901bdedb52"; // process.env["METRICS_ADVISOR_AZURE_Blob_METRIC_ID_1"];
+//const incidentId = process.env["METRICS_ADVISOR_AZURE_BLOB_INCIDENT_ID"];
 
 const client = new MetricsAdvisorClient(endpoint, credential);
-const adminClient = new MetricsAdvisorAdministrationClient(endpoint, credential);
+const adminClient = new MetricsAdvisorAdministrationClient(
+  endpoint,
+  credential
+);
+
+let cache = {
+  dataFeeds: undefined,
+  detectionConfigs: {},
+  enrichedSeries: {},
+  incidents: {},
+  anomalies: {},
+  rootCauses: {},
+};
 
 async function getDataFeeds() {
-  var listFeeds = {};
-  listFeeds.data = [];
-  for await (const datatFeed of client.listDataFeeds()) {
+  if (cache.dataFeeds) return cache.dataFeeds;
+  let listFeeds = [];
+  for await (const datatFeed of adminClient.listDataFeeds()) {
     //console.log(`id :${datatFeed.id}, name: ${datatFeed.name}`);
-    listFeeds.data.push(datatFeed);
+    listFeeds.push(datatFeed);
   }
-  if (listFeeds.length > 0){
-    return listFeeds;
-  }
-    
-  return mockDataFeeds.data;
+  cache.dataFeeds = listFeeds;
+  return listFeeds;
 }
 
 async function getDetectionConfigs(metricId) {
   //console.log(`Listing detection configurations for metric '${metricId}'...`);
+
+  if (cache.detectionConfigs[metricId]) return cache.detectionConfigs[metricId];
   var detectionConfigs = [];
-  for await (const config of adminClient.listMetricAnomalyDetectionConfigurations(metricId)) {
-    console.log(`  detection configuration ${i++}`);
-    console.log(config);
+  for await (const config of adminClient.listMetricAnomalyDetectionConfigurations(
+    metricId
+  )) {
     detectionConfigs.push(config);
   }
-  if(detectionConfigs.length > 0)
-    return detectionConfigs;
-  else 
-    return mockedConfigs;
+  cache.detectionConfigs[metricId] = detectionConfigs;
+  return detectionConfigs;
+  // if (detectionConfigs.length > 0) return detectionConfigs;
+  // else return mockedConfigs;
 }
 
 async function getEnrichedSeriesData(detectionConfigId) {
   //console.log("Retrieving metric enriched series data...");
-  try {
-    const result = await client.getMetricEnrichedSeriesData(
-      detectionConfigId,
-      new Date("01/01/2020"),
-      new Date("09/12/2020"),
-      [
-        { dimension: { Dim1: "Common Lime", Dim2: "Amphibian" } },
-        { dimension: { Dim1: "Common Beech", Dim2: "Ant" } }
-      ]
-    );
+  if (cache.enrichedSeries[detectionConfigId])
+    return cache.enrichedSeries[detectionConfigId];
+  const result = await client.getMetricEnrichedSeriesData(
+    detectionConfigId,
+    new Date("08/21/2020"),
+    new Date("09/21/2020"),
+    [
+      { dimension: { city: "Osaka", category: "Handmade" } },
+      {
+        dimension: {
+          city: "Manila",
+          category: "Shoes Handbags & Sunglasses",
+        },
+      },
+    ]
+  );
 
-    if(result.results.length > 0){
-      return result.results;
-    }
-  } catch (err) {
-    console.log("!!!!!  error in listing enriched series data");
-    console.log(err);
-  }
-  if (detectionConfigId.startsWith("3")) {
-    return mockedSeriesData;
-  } else {
-    return [mockedSeriesData[1], mockedSeriesData[0]];
-  }
+  cache.enrichedSeries[detectionConfigId] = result.results;
+  return result.results || [];
+  // if (result.results.length > 0) {
+  //   return result.results;
+  // }
+
+  // if (detectionConfigId.startsWith("3")) {
+  //   return mockedSeriesData;
+  // } else {
+  //   return [mockedSeriesData[1], mockedSeriesData[0]];
+  // }
 }
 
-async function getIncidents(detectionConfigId) {   
-  const incidentList = client.listIncidentsForDetectionConfiguration(detectionConfigId, new Date("09/06/2020"),
-  new Date("09/11/2020"));
-  var cachedIncidents = [];
-  for await(const incident of incidentList){
-    cachedIncidents[incident.id] = incident;
+async function getIncidents(detectionConfigId) {
+  if (cache.incidents[detectionConfigId])
+    return cache.incidents[detectionConfigId];
+  const incidentList = client.listIncidentsForDetectionConfiguration(
+    detectionConfigId,
+    new Date("08/21/2020"),
+    new Date("09/21/2020")
+  );
+  let cachedIncidents = [];
+  for await (const incident of incidentList) {
+    cachedIncidents.push(incident);
   }
-  if(cachedIncidents.length > 0){
-    // console.table(cachedIncidents,[
-    //   "id",
-    //   "severity",
-    //   "status",
-    //   "startTime",
-    //   "endTime",
-    //   "detectionConfigurationId"
-    // ] )
-    return cachedIncidents;
-  }
-  if (detectionConfigId.startsWith("3")) return mockedIncidents;
-  else
-    return [
-      { ...mockedIncidents[0], id: "555555555555555555555555555555555" },
-      { ...mockedIncidents[1], id: "666666666666666666666666666666666" },
-      { ...mockedIncidents[1], id: "777777777777777777777777777777777" },
-    ];
+
+  cache.incidents[detectionConfigId] = cachedIncidents;
+  // if (cachedIncidents.length > 0) {
+  // console.table(cachedIncidents,[
+  //   "id",
+  //   "severity",
+  //   "status",
+  //   "startTime",
+  //   "endTime",
+  //   "detectionConfigurationId"
+  // ] )
+  return cachedIncidents;
+  // }
+  // if (detectionConfigId.startsWith("3")) return mockedIncidents;
+  // else
+  //   return [
+  //     { ...mockedIncidents[0], id: "555555555555555555555555555555555" },
+  //     { ...mockedIncidents[1], id: "666666666666666666666666666666666" },
+  //     { ...mockedIncidents[1], id: "777777777777777777777777777777777" },
+  //   ];
 }
 
-
-async function getAnomalies(incident) {
+async function getAnomalies(incident, detecionConfigId) {
+  if (cache.anomalies[incident.id]) return cache.anomalies[incident.id];
   const result = [];
 
-  const { detectionConfigurationId, startTime, lastOccuredTime } = incident;
+  const { startTime, lastOccuredTime } = incident;
   for await (const a of client.listAnomaliesForDetectionConfiguration(
-    detectionConfigurationId,
+    detecionConfigId,
     startTime,
     lastOccuredTime
   )) {
     result.push(a);
   }
 
+  cache.anomalies[incident.id] = result;
   return result;
 }
 
@@ -126,10 +149,13 @@ function toDisplayString(dimensionKey) {
 }
 async function getRootCause(incidentId, detectionConfigId) {
   //console.log("Retrieving root causes...");
-  const result = await client.getIncidentRootCauses(detectionConfigId, incidentId);
+  const result = await client.getIncidentRootCauses(
+    detectionConfigId,
+    incidentId
+  );
   //console.log(result.rootCauses);
-  if(result.rootCauses.length > 0)
-    return result.rootCauses;
+  if (result.rootCauses.length > 0) return result.rootCauses;
+
   if (incientId.startsWith("5")) {
     return mockedRootCauses2;
   } else {
@@ -144,7 +170,7 @@ async function providePeriodFeedback(metricId) {
     feedbackType: "Period",
     periodType: "AutoDetect",
     periodValue: 4,
-    dimensionFilter: { dimension: { Dim1: "Common Lime", Dim2: "Ant" } }
+    dimensionFilter: { dimension: { Dim1: "Common Lime", Dim2: "Ant" } },
   };
   return await client.createMetricFeedback(periodFeedback);
 }
@@ -156,7 +182,7 @@ async function provideChangePointFeedback(metricId) {
     feedbackType: "ChangePoint",
     startTime: new Date("2020/08/05"),
     value: "ChangePoint",
-    dimensionFilter: { dimension: { Dim1: "Common Lime", Dim2: "Ant" } }
+    dimensionFilter: { dimension: { Dim1: "Common Lime", Dim2: "Ant" } },
   };
   return await client.createMetricFeedback(changePointFeedback);
 }
@@ -167,7 +193,7 @@ async function provideCommentFeedback(metricId) {
     metricId,
     feedbackType: "Comment",
     dimensionFilter: { dimension: { Dim1: "Common Lime", Dim2: "Amphibian" } },
-    comment: "This is a comment"
+    comment: "This is a comment",
   };
   return await client.createMetricFeedback(commendFeedback);
 }
@@ -239,12 +265,14 @@ const mockedRootCauses2 = JSON.parse(
 var startTime = new Date("09/06/2020");
 var lastOccuredTime = new Date("09/11/2020");
 module.exports.getDataFeeds = getDataFeeds;
-module.exports.getDetectionConfigs = getDetectionConfigs(metricId);
-module.exports.getEnrichedSeriesData = getEnrichedSeriesData(detectionConfigId);
-module.exports.getIncidents = getIncidents(detectionConfigId);
-module.exports.getRootCause = getRootCause(incidentId, detectionConfigId);
-module.exports.provideChangePointFeedback = provideChangePointFeedback(metricId);
-module.exports.provideCommentFeedback = provideCommentFeedback(metricId);
-module.exports.providePeriodFeedback = providePeriodFeedback(metricId);
-module.exports.getAnomalies = getAnomalies({ detectionConfigId, startTime, lastOccuredTime});
+module.exports.getDetectionConfigs = getDetectionConfigs;
+module.exports.getEnrichedSeriesData = getEnrichedSeriesData;
+module.exports.getIncidents = getIncidents;
+module.exports.getRootCause = getRootCause;
+// module.exports.provideChangePointFeedback = provideChangePointFeedback(
+//   metricId
+// );
+// module.exports.provideCommentFeedback = provideCommentFeedback(metricId);
+// module.exports.providePeriodFeedback = providePeriodFeedback(metricId);
+module.exports.getAnomalies = getAnomalies;
 module.exports.toDisplayString = toDisplayString;
