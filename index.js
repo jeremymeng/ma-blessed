@@ -17,14 +17,14 @@ async function main() {
   console.log(splash.description);
   console.log("Press any key to continue");
 
-  process.stdin.setRawMode(true);
-  process.stdin.resume();
-    process.stdin.on("data", () =>
-    {
-      createInterface();
-      await refreshInterface();
-    }
-  );
+  // process.stdin.setRawMode(true);
+  // process.stdin.resume();
+  // process.stdin.on("data", async () =>
+  {
+    createInterface();
+    refreshInterface();
+  }
+  //);
 }
 
 function transformEnrichedSerieData(enrichedSeriesData) {
