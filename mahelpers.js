@@ -68,7 +68,7 @@ async function getEnrichedSeriesData(detectionConfigId) {
     new Date("08/21/2020"),
     new Date("09/21/2020"),
     [
-      { dimension: { city: "Chicago", category: "Home & Garden" } },
+      { dimension: { city: "Chicago", category: "Shoes Handbags & Sunglasses" } },
       {
         dimension: {
           city: "Manila",
@@ -169,8 +169,21 @@ async function getRootCause(incidentId, detectionConfigId) {
   }
 }
 
+async function provideAnomalyFeedback(metricId){
+  //console.log("whether a point should or shouldn't be an anomaly");
+  const anomalyFeedback = {
+    metricId,
+    feedbackType: "Anomaly",
+    startTime: new Date("2020/08/05"),
+    endTime: new Date("2020/08/07"),
+    value: "NotAnomaly",
+    dimensionFilter: { dimension: { Dim1: "Common Lime", Dim2: "Ant" } }
+  };
+  return await client.createMetricFeedback(anomalyFeedback);
+}
+
 async function providePeriodFeedback(metricId) {
-  //console.log("Creating a period feedback...");
+  //console.log("automatically or manually detect intervals of seasonality");
   const periodFeedback = {
     metricId,
     feedbackType: "Period",
@@ -182,7 +195,7 @@ async function providePeriodFeedback(metricId) {
 }
 
 async function provideChangePointFeedback(metricId) {
-  //console.log("Creating a change point feedback...");
+  //console.log("If the point indicates start of a trend change");
   const changePointFeedback = {
     metricId,
     feedbackType: "ChangePoint",
@@ -192,6 +205,9 @@ async function provideChangePointFeedback(metricId) {
   };
   return await client.createMetricFeedback(changePointFeedback);
 }
+
+
+
 
 async function provideCommentFeedback(metricId) {
   //console.log("Creating a comment feedback...");
@@ -203,6 +219,8 @@ async function provideCommentFeedback(metricId) {
   };
   return await client.createMetricFeedback(commendFeedback);
 }
+
+
 
 const mockDataFeeds = {
   data: [
