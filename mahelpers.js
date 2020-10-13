@@ -75,6 +75,7 @@ async function getEnrichedSeriesData(detectionConfigId) {
           category: "Cell Phones",
         },
       },
+      { dimension: { city: "Osaka", category: "Handmade" } },
     ]
   );
 

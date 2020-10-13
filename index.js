@@ -357,7 +357,10 @@ async function refreshInterface() {
   loader.stop();
 
   const configData = configs.map((c) => {
-    return [c.name > 20 ? `${c.name.substr(0, 17)}...` : c.name, c.description];
+    return [
+      c.name.length > 15 ? `${c.name.substr(0, 12)}...` : c.name,
+      c.description,
+    ];
   });
 
   loader.load("Retrieving incidents for detection config...");
